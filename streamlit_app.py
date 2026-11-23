@@ -493,7 +493,8 @@ def get_world_bank_data(
 
     records = []
 
-    for item in response_datacountry_information = item.get("country", {})
+    for item in response_data[1]:
+    country_information = item.get("country", {})
 
         records.append(
             {
