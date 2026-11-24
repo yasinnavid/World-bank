@@ -34,8 +34,55 @@ section[data-testid="stSidebar"] div[data-baseweb="select"] span {color:#003B5C 
 section[data-testid="stSidebar"] button {border-radius:10px;}
 section[data-testid="stSidebar"] button p {color:black !important;}
 /* Top indicator navigator */
-div[data-testid="stSegmentedControl"] {background:#FFF;border:1px solid #CFE4F0;border-radius:15px;padding:10px;box-shadow:0 5px 18px rgba(0,90,139,.06);}
-div[data-testid="stSegmentedControl"] button {border-radius:10px !important;font-weight:650;}
+/* Indicator navigation buttons */
+div[data-testid="stSegmentedControl"] {
+    background: transparent;
+    border: none;
+    padding: 4px 0 12px 0;
+    box-shadow: none;
+}
+
+/* Individual buttons */
+div[data-testid="stSegmentedControl"] button {
+    border-radius: 20px !important;
+    padding: 8px 18px !important;
+    min-height: 42px;
+    font-weight: 600;
+    border: 1px solid #D2D8DE !important;
+    background-color: #FFFFFF !important;
+    color: #333333 !important;
+    box-shadow: 0 2px 6px rgba(0, 59, 92, 0.10);
+    transition: all 0.2s ease;
+}
+
+/* Button text */
+div[data-testid="stSegmentedControl"] button p {
+    color: #333333 !important;
+}
+
+/* Selected button */
+div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+    background-color: #0072BC !important;
+    border-color: #0072BC !important;
+    color: #FFFFFF !important;
+}
+
+/* Selected button text */
+div[data-testid="stSegmentedControl"] button[aria-pressed="true"] p {
+    color: #FFFFFF !important;
+}
+
+/* Hover */
+div[data-testid="stSegmentedControl"] button:hover {
+    border-color: #0072BC !important;
+    background-color: #EAF6FC !important;
+}
+
+/* Selected button hover */
+div[data-testid="stSegmentedControl"] button[aria-pressed="true"]:hover {
+    background-color: #005A8B !important;
+    border-color: #005A8B !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
