@@ -44,6 +44,27 @@ COUNTRIES = {
     "Egypt":"EGY","Kenya":"KEN"
 }
 
+# Approximate coordinates of national capitals. These are used only to position
+# selected countries on the real tile-based map.
+CAPITALS = {
+    "GRC": (37.9838, 23.7275, "Athens"), "DEU": (52.5200, 13.4050, "Berlin"),
+    "FRA": (48.8566, 2.3522, "Paris"), "ITA": (41.9028, 12.4964, "Rome"),
+    "ESP": (40.4168, -3.7038, "Madrid"), "PRT": (38.7223, -9.1393, "Lisbon"),
+    "NLD": (52.3676, 4.9041, "Amsterdam"), "BEL": (50.8503, 4.3517, "Brussels"),
+    "AUT": (48.2082, 16.3738, "Vienna"), "SWE": (59.3293, 18.0686, "Stockholm"),
+    "NOR": (59.9139, 10.7522, "Oslo"), "DNK": (55.6761, 12.5683, "Copenhagen"),
+    "FIN": (60.1699, 24.9384, "Helsinki"), "IRL": (53.3498, -6.2603, "Dublin"),
+    "POL": (52.2297, 21.0122, "Warsaw"), "ROU": (44.4268, 26.1025, "Bucharest"),
+    "BGR": (42.6977, 23.3219, "Sofia"), "TUR": (39.9334, 32.8597, "Ankara"),
+    "GBR": (51.5074, -0.1278, "London"), "USA": (38.9072, -77.0369, "Washington, D.C."),
+    "CAN": (45.4215, -75.6972, "Ottawa"), "BRA": (-15.7939, -47.8828, "Brasilia"),
+    "ARG": (-34.6037, -58.3816, "Buenos Aires"), "MEX": (19.4326, -99.1332, "Mexico City"),
+    "IND": (28.6139, 77.2090, "New Delhi"), "CHN": (39.9042, 116.4074, "Beijing"),
+    "JPN": (35.6762, 139.6503, "Tokyo"), "KOR": (37.5665, 126.9780, "Seoul"),
+    "AUS": (-35.2809, 149.1300, "Canberra"), "ZAF": (-25.7479, 28.2293, "Pretoria"),
+    "EGY": (30.0444, 31.2357, "Cairo"), "KEN": (-1.2921, 36.8219, "Nairobi")
+}
+
 INDICATORS = {
     "GDP":{"code":"NY.GDP.MKTP.CD","unit":"currency","description":"Gross domestic product in current US dollars"},
     "GDP per capita":{"code":"NY.GDP.PCAP.CD","unit":"currency","description":"GDP divided by the country's population"},
@@ -106,10 +127,8 @@ def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
         raise RuntimeError(f"The World Bank API returned an HTTP error: {e}") from e
     except ValueError as e:
         raise RuntimeError("The World Bank API returned an invalid response.") from e
-
     if not isinstance(response_data, list) or len(response_data) < 2 or response_data[1] is None:
         return pd.DataFrame()
-
     records = []
     for item in response_data[1]:
         country_information = item.get("country", {})
@@ -120,7 +139,6 @@ def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
             "Value": item.get("value"),
             "Indicator": item.get("indicator", {}).get("value"),
         })
-
     data = pd.DataFrame(records)
     if data.empty: return data
     data["Year"] = pd.to_numeric(data["Year"], errors="coerce")
@@ -130,7 +148,6 @@ def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
     return data.sort_values(["Country","Year"])
 
 st.markdown("""<div class="dashboard-header"><h1>🌍 Global Development Insights</h1><p>Explore indicators retrieved directly from the World Bank Indicators API</p></div>""", unsafe_allow_html=True)
-
 current_year = datetime.now().year
 DEFAULT_COUNTRIES = ["Greece","Germany","France","Italy","Spain"]
 
@@ -197,6 +214,7 @@ st.plotly_chart(fig_trend,use_container_width=True)
 
 st.markdown('<div class="section-title">Latest country comparison</div>', unsafe_allow_html=True)
 left_column,right_column = st.columns([1,1.25])
+
 with left_column:
     bar_data = latest_values.sort_values("Value",ascending=True)
     fig_bar = px.bar(bar_data,x="Value",y="Country",orientation="h",color="Value",color_continuous_scale=["#D9F0FA","#59C3E6","#0072BC","#005A8B"],text_auto=".3s",hover_data={"Year":True,"Country_Code":False})
@@ -205,11 +223,51 @@ with left_column:
     fig_bar.update_xaxes(title=selected_indicator,gridcolor=GRID_COLOR,**y_axis_settings)
     fig_bar.update_yaxes(title="")
     st.plotly_chart(fig_bar,use_container_width=True)
+
 with right_column:
-    fig_map = px.choropleth(latest_values,locations="Country_Code",color="Value",hover_name="Country",hover_data={"Year":True,"Country_Code":False,"Value":":,.2f"},color_continuous_scale=["#D9F0FA","#80D4EE","#0072BC","#003B5C"],projection="natural earth")
-    style_chart(fig_map,f"Geographic view: {selected_indicator}",470,False)
-    fig_map.update_geos(showframe=False,showcoastlines=True,coastlinecolor="#B8CDD8",showland=True,landcolor="#F2F6F8",showocean=True,oceancolor="#EAF6FC",showcountries=True,countrycolor="white")
-    fig_map.update_layout(coloraxis_colorbar=dict(title=selected_indicator,thickness=14,len=.65))
+    map_data = latest_values.copy()
+    map_data["Latitude"] = map_data["Country_Code"].map(lambda code: CAPITALS.get(code, (None,None,None))[0])
+    map_data["Longitude"] = map_data["Country_Code"].map(lambda code: CAPITALS.get(code, (None,None,None))[1])
+    map_data["Capital"] = map_data["Country_Code"].map(lambda code: CAPITALS.get(code, (None,None,None))[2])
+    map_data = map_data.dropna(subset=["Latitude","Longitude"])
+
+    # Use a square-root marker size so very large indicators such as GDP or population
+    # do not make smaller countries practically invisible.
+    positive_values = map_data["Value"].clip(lower=0)
+    max_value = positive_values.max()
+    if max_value > 0:
+        map_data["Marker_Size"] = 10 + 24 * (positive_values / max_value) ** 0.5
+    else:
+        map_data["Marker_Size"] = 16
+
+    fig_map = px.scatter_map(
+        map_data,
+        lat="Latitude",
+        lon="Longitude",
+        color="Value",
+        size="Marker_Size",
+        size_max=30,
+        hover_name="Country",
+        hover_data={
+            "Capital": True,
+            "Year": True,
+            "Value": ":,.2f",
+            "Marker_Size": False,
+            "Latitude": False,
+            "Longitude": False,
+        },
+        color_continuous_scale=["#80D4EE","#0072BC","#003B5C"],
+        map_style="open-street-map",
+        zoom=0.6,
+    )
+    fig_map.update_traces(marker=dict(opacity=0.88))
+    fig_map.update_layout(
+        title=dict(text=f"Geographic view: {selected_indicator}",x=.02,y=.97,xanchor="left",yanchor="top",font=dict(size=18,color=NAVY)),
+        height=470,
+        margin=dict(l=8,r=8,t=65,b=8),
+        paper_bgcolor="rgba(0,0,0,0)",
+        coloraxis_colorbar=dict(title=selected_indicator,thickness=12,len=.60),
+    )
     st.plotly_chart(fig_map,use_container_width=True)
 
 with st.expander("View and download the API data"):
