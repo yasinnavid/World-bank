@@ -15,7 +15,7 @@ COLOR_SEQUENCE = ["#0072BC", "#59C3E6", "#005A8B", "#9CDBF0", "#003B5C", "#2B8CC
 
 st.markdown("""
 <style>
-.stApp {background: linear-gradient(180deg,#F7FBFE 0%,#EAF4FA 100%);}
+.stApp {background:linear-gradient(180deg,#F7FBFE 0%,#EAF4FA 100%);}
 .block-container {padding-top:1.4rem;padding-bottom:2rem;max-width:1450px;}
 h1,h2,h3 {color:#003B5C;}
 .dashboard-header {padding:24px 28px;border-radius:18px;color:white;margin-bottom:20px;background:linear-gradient(110deg,#003B5C,#005A8B 42%,#0072BC 78%,#59C3E6);box-shadow:0 10px 30px rgba(0,90,139,.20);}
@@ -26,12 +26,16 @@ div[data-testid="stMetricLabel"] {color:#466879;font-weight:600;}
 div[data-testid="stMetricValue"] {color:#005A8B;font-weight:800;}
 div[data-testid="stPlotlyChart"] {background:#FFF;border:1px solid #CFE4F0;border-radius:15px;padding:8px;overflow:hidden;box-shadow:0 5px 18px rgba(0,90,139,.06);}
 .section-title {font-size:1.15rem;font-weight:750;color:#003B5C;margin:16px 0 8px;}
+.indicator-help {background:#FFF;border-left:5px solid #0072BC;padding:10px 14px;border-radius:0 10px 10px 0;color:#365B6D;margin:5px 0 15px;}
 section[data-testid="stSidebar"] {background:#005A8B;}
 section[data-testid="stSidebar"] h1,section[data-testid="stSidebar"] h2,section[data-testid="stSidebar"] h3,section[data-testid="stSidebar"] label,section[data-testid="stSidebar"] p {color:#FFF !important;}
 section[data-testid="stSidebar"] div[data-baseweb="select"] > div {background:#FFF !important;border-color:#8CC9E8 !important;}
 section[data-testid="stSidebar"] div[data-baseweb="select"] span {color:#003B5C !important;}
 section[data-testid="stSidebar"] button {border-radius:10px;}
 section[data-testid="stSidebar"] button p {color:black !important;}
+/* Top indicator navigator */
+div[data-testid="stSegmentedControl"] {background:#FFF;border:1px solid #CFE4F0;border-radius:15px;padding:10px;box-shadow:0 5px 18px rgba(0,90,139,.06);}
+div[data-testid="stSegmentedControl"] button {border-radius:10px !important;font-weight:650;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -54,8 +58,17 @@ INDICATORS = {
     "Life expectancy":{"code":"SP.DYN.LE00.IN","unit":"years","description":"Life expectancy at birth"},
     "Internet users":{"code":"IT.NET.USER.ZS","unit":"percentage","description":"Individuals using the internet as a percentage of population"},
     "Urban population":{"code":"SP.URB.TOTL.IN.ZS","unit":"percentage","description":"Urban population as a percentage of total population"},
-    "CO₂ emissions per capita":{"code":"EN.ATM.CO2E.PC","unit":"decimal","description":"Carbon dioxide emissions in metric tons per person"},
+    "CO₂ emissions per capita":{"code":"EN.ATM.CO2E.PC","unit":"decimal","description":"Carbon dioxide emissions in metric tons per person"}
 }
+
+INDICATOR_ICONS = {
+    "GDP":"💰 GDP", "GDP per capita":"👤 GDP per capita", "GDP growth":"📈 GDP growth",
+    "Population":"👥 Population", "Unemployment":"💼 Unemployment", "Inflation":"🛒 Inflation",
+    "Life expectancy":"❤️ Life expectancy", "Internet users":"🌐 Internet users",
+    "Urban population":"🏙️ Urban population", "CO₂ emissions per capita":"🌿 CO₂ per capita"
+}
+LABEL_TO_INDICATOR = {label: name for name, label in INDICATOR_ICONS.items()}
+
 
 def format_value(value, unit):
     if pd.isna(value): return "No data"
@@ -73,12 +86,14 @@ def format_value(value, unit):
         return f"{value:,.0f}"
     return f"{value:,.2f}"
 
+
 def axis_format(unit):
     if unit == "currency": return {"tickprefix":"$","tickformat":"~s"}
     if unit == "percentage": return {"ticksuffix":"%","tickformat":",.1f"}
     if unit == "years": return {"ticksuffix":" years","tickformat":",.1f"}
     if unit == "number": return {"tickformat":"~s"}
     return {"tickformat":",.2f"}
+
 
 def style_chart(fig, title, height=420, legend=False):
     fig.update_layout(
@@ -89,6 +104,7 @@ def style_chart(fig, title, height=420, legend=False):
     if legend:
         fig.update_layout(legend=dict(orientation="h",x=.02,xanchor="left",y=1.02,yanchor="bottom",title_text="",font=dict(size=12)))
     return fig
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
@@ -109,18 +125,14 @@ def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
 
     if not isinstance(response_data, list) or len(response_data) < 2 or response_data[1] is None:
         return pd.DataFrame()
-
     records = []
     for item in response_data[1]:
         country_information = item.get("country", {})
         records.append({
-            "Country": country_information.get("value"),
-            "Country_Code": item.get("countryiso3code"),
-            "Year": item.get("date"),
-            "Value": item.get("value"),
-            "Indicator": item.get("indicator", {}).get("value"),
+            "Country":country_information.get("value"), "Country_Code":item.get("countryiso3code"),
+            "Year":item.get("date"), "Value":item.get("value"),
+            "Indicator":item.get("indicator", {}).get("value")
         })
-
     data = pd.DataFrame(records)
     if data.empty: return data
     data["Year"] = pd.to_numeric(data["Year"], errors="coerce")
@@ -129,27 +141,27 @@ def get_world_bank_data(country_codes, indicator_code, start_year, end_year):
     data["Year"] = data["Year"].astype(int)
     return data.sort_values(["Country","Year"])
 
+
 st.markdown("""<div class="dashboard-header"><h1>🌍 Global Development Insights</h1><p>Explore indicators retrieved directly from the World Bank Indicators API</p></div>""", unsafe_allow_html=True)
 
 current_year = datetime.now().year
 DEFAULT_COUNTRIES = ["Greece","Germany","France","Italy","Spain"]
 
+
 def reset_filters():
     st.session_state["selected_countries"] = DEFAULT_COUNTRIES
-    st.session_state["selected_indicator"] = "GDP per capita"
     st.session_state["selected_years"] = (2000, current_year)
+    st.session_state["indicator_navigator"] = INDICATOR_ICONS["GDP per capita"]
+
 
 with st.sidebar:
     st.header("Dashboard Filters")
     st.button("↻ Clear all filters", use_container_width=True, on_click=reset_filters)
-    st.caption("Choose countries, an indicator and a period.")
+    st.caption("Choose countries and a period. Select the indicator from the navigator on the main page.")
     selected_countries = st.multiselect("Countries", list(COUNTRIES.keys()), default=DEFAULT_COUNTRIES, key="selected_countries")
-    selected_indicator = st.selectbox("Development indicator", list(INDICATORS.keys()), index=list(INDICATORS.keys()).index("GDP per capita"), key="selected_indicator")
     selected_years = st.slider("Year range", min_value=1990, max_value=current_year, value=(2000,current_year), step=1, key="selected_years")
     st.divider()
-    st.markdown("### Selected indicator")
-    st.write(INDICATORS[selected_indicator]["description"])
-    st.caption("Data is retrieved from the World Bank API and cached for one hour.")
+    st.caption("Data is retrieved directly from the World Bank API and cached for one hour.")
 
 if not selected_countries:
     st.warning("Please select at least one country.")
@@ -158,13 +170,28 @@ if len(selected_countries) > 10:
     st.warning("Please select no more than 10 countries so the charts remain readable.")
     st.stop()
 
+# Indicator page navigator, placed directly above the cards.
+st.markdown('<div class="section-title">Development indicator</div>', unsafe_allow_html=True)
+selected_label = st.segmented_control(
+    "Development indicator navigator",
+    options=list(LABEL_TO_INDICATOR.keys()),
+    default=INDICATOR_ICONS["GDP per capita"],
+    selection_mode="single",
+    key="indicator_navigator",
+    label_visibility="collapsed"
+)
+if selected_label is None:
+    selected_label = INDICATOR_ICONS["GDP per capita"]
+selected_indicator = LABEL_TO_INDICATOR[selected_label]
 indicator_information = INDICATORS[selected_indicator]
+st.markdown(f'<div class="indicator-help"><b>{selected_indicator}</b>: {indicator_information["description"]}</div>', unsafe_allow_html=True)
+
 indicator_code = indicator_information["code"]
 indicator_unit = indicator_information["unit"]
 start_year, end_year = selected_years
 selected_country_codes = [COUNTRIES[c] for c in selected_countries]
 
-with st.spinner("Retrieving data from the World Bank API..."):
+with st.spinner(f"Retrieving {selected_indicator.lower()} data from the World Bank API..."):
     try:
         df = get_world_bank_data(selected_country_codes, indicator_code, start_year, end_year)
     except RuntimeError as error:
